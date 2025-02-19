@@ -34,7 +34,7 @@ paddleocr = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["app"] 
+packages = ["kgtools"] 
 
 [tool.black]
 line-length = 88
