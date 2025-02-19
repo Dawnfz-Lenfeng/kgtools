@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kgtools"
+version = "0.1.0"
+description = "Knowledge Graph Construction System"
+authors = [
+    {name = "Dawnfz-Lenfeng", email = "2912706234@qq.com"}
+]
+requires-python = ">=3.10"
+dependencies = [
+    "tqdm",
+    "pdf2image",
+    "pdfplumber",
+    "cnocr[ort-cpu]",
+    "pytesseract",
+]
+
+[project.scripts]
+ckgcus = "app.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "flake8",
+    "mypy",
+    "black",
+]
+paddleocr = [
+    "paddlepaddle",
+    "paddleocr",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"] 
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+force_single_line = false
+combine_as_imports = true
+
+[tool.mypy]
+python_version = "3.10"
+exclude = ["tests/"]
+
+[[tool.mypy.overrides]]
+module = ["cnocr.*", "pytesseract.*", "paddleocr.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "session"
+asyncio_mode = "auto"
