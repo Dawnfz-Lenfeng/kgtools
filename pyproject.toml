@@ -18,9 +18,6 @@ dependencies = [
     "pytesseract",
 ]
 
-[project.scripts]
-ckgcus = "app.cli:main"
-
 [project.optional-dependencies]
 dev = [
     "pytest",
@@ -53,7 +50,3 @@ exclude = ["tests/"]
 [[tool.mypy.overrides]]
 module = ["cnocr.*", "pytesseract.*", "paddleocr.*"]
 ignore_missing_imports = true
-
-[tool.pytest.ini_options]
-asyncio_default_fixture_loop_scope = "session"
-asyncio_mode = "auto"
