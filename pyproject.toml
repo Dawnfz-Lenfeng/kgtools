@@ -1,14 +1,12 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "kgtools"
 version = "0.1.0"
 description = "Knowledge Graph Construction System"
-authors = [
-    {name = "Dawnfz-Lenfeng", email = "2912706234@qq.com"}
-]
+authors = [{ name = "Dawnfz-Lenfeng", email = "2912706234@qq.com" }]
 requires-python = ">=3.10"
 dependencies = [
     "tqdm",
@@ -19,18 +17,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest",
-    "mypy",
-    "black",
-]
-paddleocr = [
-    "paddlepaddle",
-    "paddleocr",
-]
-
-[tool.hatch.build.targets.wheel]
-packages = ["kgtools"] 
+dev = ["pytest", "mypy", "black"]
+paddleocr = ["paddlepaddle", "paddleocr"]
 
 [tool.black]
 line-length = 88
