@@ -7,10 +7,6 @@ COMMAS = ",;，；"
 STOPS = ".!?。！？"
 PUNCTS = COMMAS + STOPS
 
-# 长度阈值
-MIN_PARA = 15
-MIN_SENT = 5
-
 # 正则
 RE_PUNCT = re.compile(f"，。|。，|[{COMMAS}]+|[{STOPS}]+")
 RE_COMMA = re.compile(f"[{COMMAS}]+")
@@ -25,29 +21,51 @@ RE_MULTI_PUNCT = re.compile(r"[，。]+")
 def normalize_text(
     text: str | None,
     *,
+    min_paragraph_length: int = 15,
+    min_sentence_length: int = 5,
     char_threshold: int = 2,
-    sentence_threshold: float = 0.9,
+    sentence_threshold: float = 0.95,
 ) -> str:
-    """清理文本：移除非中文字符，统一标点符号，去除重复内容
+    """Normalize Chinese text by cleaning and standardizing content.
 
-    :param text: 待清理的文本
-    :param char_threshold: 连续重复字符的最小长度
-    :param sentence_threshold: 句子重复度的阈值
+    Args:
+        text: The input text to normalize. Can be None.
+        min_paragraph_length: Minimum length for a paragraph to be kept (default: 15)
+        min_sentence_length: Minimum length for a sentence to be kept (default: 5)
+        char_threshold: Maximum number of consecutive repeated characters to keep (default: 2)
+        sentence_threshold: Similarity threshold for sentence deduplication (default: 0.95)
+
+    Returns:
+        str: The normalized text with the following characteristics:
+            - Only contains Chinese characters and punctuation marks
+            - Only uses "，" for commas and "。" for periods
+            - Paragraphs are separated by "。\\n"
+            - No whitespace within paragraphs
+            - Empty string if input is None or results in no valid content
+
+    Notes:
+        - Sentences shorter than min_sentence_length will be removed
+        - Paragraphs shorter than min_paragraph_length will be removed
+        - Similar sentences (similarity >= sentence_threshold) will be deduplicated
+        - Consecutive repeated characters beyond char_threshold will be compressed
     """
     if not text:
         return ""
 
     text = RE_NONZH.sub("", text)
-    text = standardize_punctuation(text)
-    text = remove_redundant_text(text, char_threshold, sentence_threshold)
-    text = clean_consecutive_puncts(text)
+    text = _standardize_punctuation(text)
+    text = _compress_chars(text, char_threshold)
+    text = _remove_redundant_text(
+        text, sentence_threshold, min_paragraph_length, min_sentence_length
+    )
+    text = _clean_consecutive_puncts(text)
     if text == "。":
         return ""
 
     return text
 
 
-def clean_consecutive_puncts(text: str) -> str:
+def _clean_consecutive_puncts(text: str) -> str:
     """清理连续的句号和逗号"""
 
     def replace_puncts(match: re.Match) -> str:
@@ -60,34 +78,35 @@ def clean_consecutive_puncts(text: str) -> str:
     return RE_MULTI_PUNCT.sub(replace_puncts, text)
 
 
-def standardize_punctuation(text: str) -> str:
+def _standardize_punctuation(text: str) -> str:
     """统一标点符号格式"""
     text = RE_COMMA.sub("，", text)
     text = RE_STOP.sub("。", text)
     # 处理连续标点
-    return clean_consecutive_puncts(text)
+    return _clean_consecutive_puncts(text)
 
 
-def remove_redundant_text(
-    text: str, char_threshold: int = 2, sentence_threshold: float = 0.9
+def _remove_redundant_text(
+    text: str,
+    sentence_threshold: float,
+    min_paragraph_length: int,
+    min_sentence_length: int,
 ) -> str:
     """移除文本中的重复内容"""
-    text = compress_chars(text, char_threshold)
-
     cleaned_paras = []
     for para in RE_PARA.split(text):
         para = para.replace("\n", "")
         if not para:
             continue
 
-        cleaned = deduplicate_sentences(para, sentence_threshold)
-        if len(cleaned) >= MIN_PARA:
+        cleaned = _deduplicate_sentences(para, sentence_threshold, min_sentence_length)
+        if len(cleaned) >= min_paragraph_length:
             cleaned_paras.append(cleaned)
 
     return "\n".join(cleaned_paras) + "。"
 
 
-def compress_chars(text: str, char_threshold: int = 2) -> str:
+def _compress_chars(text: str, char_threshold: int) -> str:
     """压缩连续重复的字符"""
     if not text:
         return ""
@@ -102,7 +121,7 @@ def compress_chars(text: str, char_threshold: int = 2) -> str:
 
         repeat_count = j - i
         if repeat_count > char_threshold:
-            chars.append(curr_char)
+            chars.extend([curr_char] * char_threshold)
         else:
             chars.extend([curr_char] * repeat_count)
         i = j
@@ -110,9 +129,11 @@ def compress_chars(text: str, char_threshold: int = 2) -> str:
     return "".join(chars)
 
 
-def deduplicate_sentences(paragraph: str, similarity_threshold: float = 0.9) -> str:
+def _deduplicate_sentences(
+    paragraph: str, similarity_threshold: float, min_sentence_length: int
+) -> str:
     """去除段落中的相似句子"""
-    sentences = [s for s in RE_SENT.split(paragraph) if len(s) >= MIN_SENT]
+    sentences = [s for s in RE_SENT.split(paragraph) if len(s) >= min_sentence_length]
     if not sentences:
         return ""
 
