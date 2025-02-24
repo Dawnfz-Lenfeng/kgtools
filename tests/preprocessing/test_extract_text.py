@@ -5,9 +5,9 @@ import pytest
 from kgtools.preprocessing import extract_text
 
 # 示例文件路径
-TESTS_ROOT = Path(__file__).parent.parent
-TEST_PDF = TESTS_ROOT / "data" / "test.pdf"
-TEST_TXT = TESTS_ROOT / "data" / "test.txt"
+TESTS_ROOT = Path(__file__).parent.parent / "data"
+TEST_PDF = TESTS_ROOT / "test.pdf"
+TEST_TXT = TESTS_ROOT / "test.txt"
 
 
 def test_extract_text_txt():
@@ -40,6 +40,13 @@ def test_different_ocr_engines(ocr_engine: str):
     """测试不同的OCR引擎"""
     text = extract_text(TEST_PDF, "pdf", ocr_engine=ocr_engine, force_ocr=True)
     assert len(text) > 0
+
+
+def test_invalid_file_type():
+    """测试不支持的文件类型"""
+    with pytest.raises(ValueError) as exc_info:
+        extract_text(TESTS_ROOT / "test.doc", "doc")
+    assert "Unsupported file type" in str(exc_info.value)
 
 
 def test_extract_text_not_found():

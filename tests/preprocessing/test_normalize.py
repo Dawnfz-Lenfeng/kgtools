@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from kgtools.preprocessing.normalize_text import normalize_text
+from kgtools.preprocessing import normalize_text
 
 # Test data path
 TESTS_ROOT = Path(__file__).parent.parent
