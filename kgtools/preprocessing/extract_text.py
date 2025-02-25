@@ -2,6 +2,7 @@ import logging
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import wraps
 from pathlib import Path
 from typing import Any, Callable
 
@@ -15,6 +16,7 @@ logger.setLevel(logging.INFO)
 
 _THREAD_LOCK = threading.Lock()
 _OCR_INSTANCES: dict[str, Any] = {}
+_OCR_ENGINES: dict[str, Callable[[str, list[int], int], str]] = {}
 
 
 def extract_text(
@@ -78,9 +80,56 @@ def extract_text(
     return text
 
 
+def _register_ocr_engine(name: str):
+    """Register OCR engine and handle parallel processing.
+
+    This decorator registers the OCR function to _OCR_ENGINES and automatically
+    handles parallel processing. The decorated function should focus only on
+    processing a single page.
+
+    Args:
+        name: Name of the OCR engine to register
+
+    Example:
+        @register_ocr_engine("cnocr")
+        def process_with_cnocr(file_path: str, page_num: int) -> str | None:
+            # Process single page logic here
+            ...
+    """
+
+    def decorator(
+        func: Callable[[str, int], str | None]
+    ) -> Callable[[str, list[int], int], str]:
+        @wraps(func)
+        def wrapper(file_path: str, pages: list[int], num_workers: int) -> str:
+            logger.info(f"Starting {name} extraction with {num_workers} workers...")
+            results = []
+
+            with ThreadPoolExecutor(max_workers=num_workers) as executor:
+                futures = {executor.submit(func, file_path, num): num for num in pages}
+
+                for future in tqdm(
+                    as_completed(futures), total=len(pages), unit="page"
+                ):
+                    page_num = futures[future]
+                    try:
+                        if page_text := future.result():
+                            results.append((page_num, page_text))
+                    except Exception as e:
+                        logger.warning(f"Error processing page {page_num}: {e}")
+
+            return "\n".join(text for _, text in sorted(results))
+
+        _OCR_ENGINES[name] = wrapper
+        return wrapper
+
+    return decorator
+
+
 # OCR engine implementations
-def _extract_with_cnocr(file_path: str, pages: list[int], num_workers: int) -> str:
-    """Extract text using CnOCR"""
+@_register_ocr_engine("cnocr")
+def _extract_with_cnocr(file_path: str, page_num: int) -> str | None:
+    """Extract text from a single page using CnOCR"""
     try:
         from cnocr import CnOcr
     except ImportError:
@@ -92,55 +141,43 @@ def _extract_with_cnocr(file_path: str, pages: list[int], num_workers: int) -> s
                 _OCR_INSTANCES["cnocr"] = CnOcr()
 
     ocr = _OCR_INSTANCES["cnocr"]
-
-    def _process_page(file_path: str, page_num: int) -> str | None:
-        img = _convert_page_to_image(file_path, page_num)
-        if img is None:
-            return None
-
-        try:
-            res = ocr.ocr(img)
-            return "\n".join(line["text"] for line in res).strip()
-        except Exception as e:
-            logger.warning(f"Error processing page {page_num}: {e}")
+    img = _convert_page_to_image(file_path, page_num)
+    if img is None:
         return None
 
-    return _process_pages_parallel(
-        file_path, pages, num_workers, "cnocr", _process_page
-    )
+    try:
+        res = ocr.ocr(img)
+        return "\n".join(line["text"] for line in res).strip()
+    except Exception as e:
+        logger.warning(f"Error processing page {page_num}: {e}")
+    return None
 
 
-def _extract_with_tesseract(file_path: str, pages: list[int], num_workers: int) -> str:
-    """Extract text using Tesseract"""
+@_register_ocr_engine("tesseract")
+def _extract_with_tesseract(file_path: str, page_num: int) -> str | None:
+    """Extract text from a single page using Tesseract"""
     try:
         import pytesseract
     except ImportError:
         raise ImportError("Please install pytesseract with: pip install pytesseract")
 
-    # tesseract itself uses omp multithreading
-    # but we have multithreading, avoid thread explosion
     os.environ["OMP_THREAD_LIMIT"] = "1"
-    logger.info("Set OMP_THREAD_LIMIT=1 for tesseract")
 
-    def extract_page(file_path: str, page_num: int) -> str | None:
-        img = _convert_page_to_image(file_path, page_num)
-        if img is None:
-            return None
+    img = _convert_page_to_image(file_path, page_num)
+    if img is None:
+        return None
 
-        try:
-            text = pytesseract.image_to_string(img, lang="chi_sim")
-            return text.strip()
-        except Exception as e:
-            logger.warning(f"Error processing page {page_num}: {e}")
-            return None
-
-    return _process_pages_parallel(
-        file_path, pages, num_workers, "tesseract", extract_page
-    )
+    try:
+        text = pytesseract.image_to_string(img, lang="chi_sim")
+        return text.strip()
+    except Exception as e:
+        logger.warning(f"Error processing page {page_num}: {e}")
+        return None
 
 
-def _extract_with_paddle(file_path: str, pages: list[int], num_workers: int) -> str:
-    """Extract text using PaddleOCR"""
+@_register_ocr_engine("paddleocr")
+def _extract_with_paddle(file_path: str, page_num: int) -> str | None:
+    """Extract text from a single page using PaddleOCR"""
     try:
         import numpy as np
         from paddleocr import PaddleOCR
@@ -158,23 +195,17 @@ def _extract_with_paddle(file_path: str, pages: list[int], num_workers: int) -> 
                 )
 
     ocr = _OCR_INSTANCES["paddle"]
+    img = _convert_page_to_image(file_path, page_num, "RGB")
+    if img is None:
+        return None
 
-    def _process_page(file_path: str, page_num: int) -> str | None:
-        img = _convert_page_to_image(file_path, page_num, "RGB")
-        if img is None:
-            return None
-
-        try:
-            with _THREAD_LOCK:
-                result = ocr.ocr(np.array(img))
-            return "\n".join(line[1][0] for line in result[0]).strip()
-        except Exception as e:
-            logger.warning(f"Error processing page {page_num}: {e}")
-            return None
-
-    return _process_pages_parallel(
-        file_path, pages, num_workers, "paddleocr", _process_page
-    )
+    try:
+        with _THREAD_LOCK:
+            result = ocr.ocr(np.array(img))
+        return "\n".join(line[1][0] for line in result[0]).strip()
+    except Exception as e:
+        logger.warning(f"Error processing page {page_num}: {e}")
+        return None
 
 
 def _extract_with_pdfplumber(file_path: str, pages: list[int]) -> str:
@@ -215,36 +246,3 @@ def _convert_page_to_image(
     except Exception as e:
         logger.warning(f"Error converting page {page_num} to image: {e}")
         return None
-
-
-def _process_pages_parallel(
-    file_path: str,
-    pages: list[int],
-    num_workers: int,
-    ocr_engine: str,
-    extract_page: Callable[[str, int], str | None],
-) -> str:
-    """Generic function for parallel OCR text extraction"""
-    logger.info(f"Starting {ocr_engine} extraction with {num_workers} workers...")
-    results = []
-
-    with ThreadPoolExecutor(max_workers=num_workers) as executor:
-        futures = {executor.submit(extract_page, file_path, num): num for num in pages}
-
-        for future in tqdm(as_completed(futures), total=len(pages), unit="page"):
-            page_num = futures[future]
-            try:
-                if page_text := future.result():
-                    results.append((page_num, page_text))
-            except Exception as e:
-                logger.warning(f"Error processing page {page_num}: {e}")
-
-    return "\n".join(text for _, text in sorted(results))
-
-
-# OCR engine mapping
-_OCR_ENGINES = {
-    "cnocr": _extract_with_cnocr,
-    "tesseract": _extract_with_tesseract,
-    "paddleocr": _extract_with_paddle,
-}
