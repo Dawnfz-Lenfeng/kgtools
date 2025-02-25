@@ -98,7 +98,7 @@ def _register_ocr_engine(name: str):
     """
 
     def decorator(
-        func: Callable[[str, int], str | None]
+        func: Callable[[str, int], str | None],
     ) -> Callable[[str, list[int], int], str]:
         @wraps(func)
         def wrapper(file_path: str, pages: list[int], num_workers: int) -> str:
