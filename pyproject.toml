@@ -19,6 +19,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest", "mypy", "black"]
 paddleocr = ["paddlepaddle", "paddleocr"]
+schema = ["pydantic>=2.0.0"]
 
 [tool.black]
 line-length = 88
