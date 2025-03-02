@@ -21,7 +21,7 @@ _OCR_ENGINES: dict[str, Callable[[str, list[int], int], str]] = {}
 
 def extract_text(
     file_path: str | Path,
-    file_type: str,
+    file_type: str | None = None,
     *,
     first_page: int = 1,
     last_page: int | None = None,
@@ -50,6 +50,9 @@ def extract_text(
     file_path = str(file_path)
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
+
+    if file_type is None:
+        file_type = file_path.split(".")[-1]
 
     ocr_engine = ocr_engine.lower()
     if ocr_engine not in _OCR_ENGINES:
