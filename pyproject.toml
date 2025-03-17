@@ -16,6 +16,7 @@ dependencies = [
     "pytesseract",
     "mittens",
     "jieba",
+    "sklearn",
 ]
 
 [project.optional-dependencies]
