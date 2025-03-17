@@ -1,10 +1,10 @@
 import jieba
 import numpy as np
 from mittens import GloVe
+from scipy.sparse import csr_matrix
 from sklearn.covariance import GraphicalLasso
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
-from scipy import sparse
 
 
 def build_graph(
@@ -14,10 +14,12 @@ def build_graph(
     embedding_size: int = 200,
     context_size: int = 10,
     glove_epochs: int = 100,
+    glasso_epochs: int = 100,
+    tolerance: float = 1e-3,
     learning_rate: float = 0.05,
     lambda_glasso: float = 0.1,
     min_weight: float = 0.1,
-) -> sparse.csr_matrix:
+):
     """构建知识图谱的关系矩阵
 
     Args:
@@ -41,8 +43,8 @@ def build_graph(
     glasso = GraphicalLasso(
         alpha=lambda_glasso,
         assume_centered=True,
-        max_iter=1000,
-        tol=1e-3,
+        max_iter=glasso_epochs,
+        tol=tolerance,
     )
 
     # 预处理文档
@@ -128,7 +130,7 @@ def _build_relation_matrix(
 ):
     """构建关系矩阵"""
     scaler = StandardScaler()
-    embeddings_scaled = scaler.fit_transform(embeddings.T).T
+    embeddings_scaled = scaler.fit_transform(embeddings.T)
 
     glasso.fit(embeddings_scaled)
     precision_matrix = glasso.precision_
@@ -141,4 +143,4 @@ def _build_relation_matrix(
 
     relation_matrix[relation_matrix < min_weight] = 0
 
-    return sparse.csr_matrix(relation_matrix)
+    return csr_matrix(relation_matrix)
