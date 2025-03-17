@@ -1,22 +1,21 @@
-import numpy as np
-import pytest
+from scipy import sparse
 
 from kgtools.graph import build_graph
 
 
-def test_build_graph_basic():
+def test_build_graph():
     """测试基本的图构建功能"""
-    documents = [
-        "机器学习是人工智能的一个子领域",
-        "深度学习是机器学习的一种方法",
-        "神经网络是深度学习的基础",
+    docs = [
+        "机器学习是人工智能的一个重要分支。\n深度学习是机器学习的一个子领域。\n神经网络是深度学习的基础。",
+        "深度学习是机器学习的一个子领域。\n神经网络是深度学习的基础。\n自然语言处理是人工智能的一个重要分支。",
+        "神经网络是深度学习的基础。\n自然语言处理是人工智能的一个重要分支。\n计算机视觉是人工智能的一个重要分支。",
     ]
     keywords = ["机器学习", "深度学习", "人工智能", "神经网络"]
 
-    with pytest.raises(NotImplementedError):
-        matrix = build_graph(documents, keywords)
+    matrix = build_graph(docs, keywords, embedding_size=10, context_size=5)
 
-    # assert isinstance(matrix, np.ndarray)
-    # assert matrix.shape == (4, 4)  # 4x4 矩阵，对应4个关键词
-    # assert np.all(matrix >= 0)  # 所有权重应该非负
-    # assert np.all(matrix <= 1)  # 归一化后的权重应该不超过1
+    assert isinstance(matrix, sparse.csr_matrix)
+    assert matrix.shape == (len(keywords), len(keywords))
+    assert matrix.diagonal().sum() == 0  # 确保对角线为0
+    assert 0 <= matrix.max() <= 1  # 确保归一化正确
+    assert matrix.min() >= 0  # 确保没有负值

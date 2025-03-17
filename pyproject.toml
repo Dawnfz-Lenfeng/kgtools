@@ -14,6 +14,8 @@ dependencies = [
     "pdfplumber",
     "cnocr[ort-cpu]",
     "pytesseract",
+    "mittens",
+    "jieba",
 ]
 
 [project.optional-dependencies]
