@@ -1,4 +1,4 @@
-import jieba
+import jieba_fast as jieba
 import numpy as np
 from mittens import GloVe
 from scipy.sparse import csr_matrix

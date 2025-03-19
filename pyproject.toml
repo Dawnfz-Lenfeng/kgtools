@@ -15,7 +15,7 @@ dependencies = [
     "cnocr[ort-cpu]",
     "pytesseract",
     "mittens",
-    "jieba",
+    "jieba_fast",
     "scikit-learn",
 ]
 

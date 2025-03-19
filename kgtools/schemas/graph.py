@@ -22,7 +22,7 @@ class GraphConfig(BaseModel):
         description="GloVe 训练轮次",
     )
     glasso_epochs: int = Field(
-        default=100,
+        default=1000,
         ge=1,
         description="Graphical Lasso 最大迭代次数",
     )
